@@ -7,6 +7,94 @@ export const stores = [
   { id: "coupang", name: "Coupang", detail: "공식 Apple 리셀러" },
 ];
 
+// Watch 가격은 Apple의 판매 페이지에 표시된 시작가와 크기·연결성 차액을 기준으로 계산합니다.
+// 스테인리스 스틸은 밀레니즈 루프(+70,000원)를 대표 구성으로 사용합니다.
+// Coupang은 동일한 옵션의 판매가를 확인한 경우에만 표시합니다.
+export const watchSources = {
+  apple: {
+    series: "https://www.apple.com/kr/shop/buy-watch/apple-watch",
+    se: "https://www.apple.com/kr/shop/buy-watch/apple-watch-se",
+  },
+  education: {
+    series: "https://www.apple.com/kr-edu/shop/buy-watch/apple-watch",
+    se: "https://www.apple.com/kr-edu/shop/buy-watch/apple-watch-se",
+  },
+};
+
+const watchBasePrices = {
+  series: {
+    aluminum: {
+      small: { gps: { apple: 599000, education: 540000 }, cellular: { apple: 749000, education: 670000 } },
+      large: { gps: { apple: 669000, education: 610000 }, cellular: { apple: 819000, education: 740000 } },
+    },
+    titanium: {
+      small: { cellular: { apple: 999000, education: 890000 } },
+      large: { cellular: { apple: 1069000, education: 960000 } },
+    },
+    ceramic: {
+      small: { cellular: { apple: 1399000, education: 1260000 } },
+      large: { cellular: { apple: 1469000, education: 1330000 } },
+    },
+  },
+  se: {
+    aluminum: {
+      small: { gps: { apple: 369000, education: 339000 }, cellular: { apple: 439000, education: 409000 } },
+      large: { gps: { apple: 409000, education: 379000 }, cellular: { apple: 479000, education: 449000 } },
+    },
+  },
+};
+
+export function watchProducts({ size, connectivity, casing, band }) {
+  return [
+    { id: "watch-12", model: "series", name: "Apple Watch Series 12", mm: size === "small" ? 42 : 46 },
+    { id: "watch-se3", model: "se", name: "Apple Watch SE 3", mm: size === "small" ? 40 : 44 },
+  ].map(({ id, model, name, mm }) => {
+    const base = watchBasePrices[model]?.[casing]?.[size]?.[connectivity];
+    const premium = band === "premium" ? 70000 : 0;
+    const originalCoupang = size === "small" && connectivity === "gps" && casing === "aluminum" && band === "basic";
+    return {
+      id,
+      name,
+      variant: `${mm}mm · ${{ aluminum: "알루미늄", titanium: "티타늄", ceramic: "세라믹" }[casing]} · ${connectivity === "gps" ? "GPS" : "GPS + Cellular"} · ${band === "basic" ? "기본 밴드" : "밀레니즈 루프"}`,
+      prices: {
+        apple: base ? base.apple + premium : null,
+        education: base ? base.education + premium : null,
+        coupang: originalCoupang ? (model === "series" ? 585820 : 360880) : null,
+      },
+      estimatedPrices: premium > 0 || size === "large" || connectivity === "cellular",
+      missingLabels: casing !== "aluminum" && model === "se"
+        ? { apple: "판매하지 않는 구성", education: "판매하지 않는 구성", coupang: "판매하지 않는 구성" }
+        : { coupang: "동일 구성 가격 미확인" },
+    };
+  });
+}
+
+// iPad 추가 구성은 같은 판매처에서 기기와 호환 액세서리를 각각 살 때의 합계입니다.
+// Apple Pencil Pro를 기준으로 하며, Coupang 액세서리 가격은 현재 검증되지 않았습니다.
+export const ipadAccessories = {
+  pencil: {
+    name: "Apple Pencil Pro",
+    prices: { apple: 195000, education: 180000, coupang: 177200 },
+    sources: {
+      apple:
+        "https://www.apple.com/kr/shop/accessories/all/content-creation/apple-pencil-apple",
+      education:
+        "https://www.apple.com/kr-edu/shop/product/mx2d3kh/a/apple-pencil-pro",
+    },
+  },
+  keyboards: {
+    "ipad-pro-13": { apple: 519000, education: 490000, coupang: 462430 },
+    "ipad-pro-11": { apple: 449000, education: 420000, coupang: 440020 },
+    "ipad-air-13": { apple: 449000, education: 420000, coupang: 422510 },
+    "ipad-air-11": { apple: 419000, education: 390000, coupang: 394050 },
+  },
+  keyboardSources: {
+    apple: "https://www.apple.com/kr/shop/accessories/all/mice-keyboards",
+    education:
+      "https://www.apple.com/kr-edu/shop/accessories/all/college-essentials/apple",
+  },
+};
+
 const imageBase =
   "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/";
 export const groups = [
@@ -56,16 +144,32 @@ export const groups = [
     id: "mac-mini",
     label: "Mac mini",
     category: "Mac",
-    description: "M6 · 32GB 메모리 · 1TB 저장 공간 · 10GiB",
-    image: `${imageBase}store-card-13-mac-nav-202603?wid=400&hei=260&fmt=png-alpha&.v=M1Q3OGxnb1lBaHhqNjZ2OVRXZmx4V2duSGVkdTVncGZYc0RnS1paU3IySCsrUlZaSVRoWVYzU0Qra0FoTmUwNng2bitObzZwQzk4cEorV1dZdzhIazAreDNWYWNLK1lESGRXY25VRzdWVTQ`,
+    description: "M6 · 메모리와 저장 장치별 구성",
+    image: `${imageBase}mac-mini-chip-unselect-202608-gallery-1?wid=5120&hei=3280&fmt=p-jpg&qlt=80&.v=d1pXNGRPZVVoYmlPOFhNR3g4R2wxRXR2WVdiVFJadS9sN05uYmNBWEpHZVFmZjd5T2R4eGRzZEl3a0hpNytPUUxNckZKekhaNGVhZVQvMTRuMXRSYTJ1Y0hhYzFCK0tzV3gwSFNTUHQzNHVlUEJLVHg0QTN1WURBNjBpaE0wOTM&traceId=1`,
     products: [
       {
-        id: "mac-mini-m6",
+        id: "mac-mini-m6-base",
         name: "Mac mini M6",
-        variant: "32GB · 1TB · 10GiB",
+        variant: "16GB · 256GB · 2.5Gb 이더넷",
+        prices: { apple: 1499000, education: 1329000, coupang: 1499000 },
+      },
+      {
+        id: "mac-mini-m6-mid",
+        name: "Mac mini M6",
+        variant: "24GB · 512GB · 2.5Gb 이더넷",
+        prices: { apple: 2179000, education: 2009000, coupang: 2990000 },
+      },
+      {
+        id: "mac-mini-m6-high",
+        name: "Mac mini M6",
+        variant: "32GB · 1TB · 10Gb 이더넷",
         prices: { apple: 3199000, education: 2927000, coupang: null },
       },
     ],
+    sources: {
+      apple: "https://www.apple.com/kr/shop/buy-mac/mac-mini",
+      education: "https://www.apple.com/kr-edu/shop/buy-mac/mac-mini",
+    },
   },
   {
     id: "airpods",

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { groups, stores, lastUpdated, installmentGuide } from "./data";
+import { groups, stores, lastUpdated, installmentGuide, ipadAccessories, watchProducts, watchSources } from "./data";
 import "./styles.css";
 
 const won = new Intl.NumberFormat("ko-KR", {
@@ -43,6 +43,31 @@ function Installments({ storeId, price }) {
     </div>
   );
 }
+function AccessoryOptions({ product, storeId, basePrice }) {
+  const keyboardPrices = ipadAccessories.keyboards[product.id];
+  if (!keyboardPrices || basePrice === null) return null;
+  const pencilPrice = ipadAccessories.pencil.prices[storeId];
+  const keyboardPrice = keyboardPrices[storeId];
+  const options = [
+    ["펜슬 추가 시", pencilPrice],
+    ["매직 키보드 추가 시", keyboardPrice],
+    ["둘 다 추가 시", pencilPrice !== null && keyboardPrice !== null ? pencilPrice + keyboardPrice : null],
+  ];
+  return <div className="accessory-options" aria-label={`${product.name} 추가 구성 가격`}>
+    <span className="accessory-heading">추가 구성 · Apple Pencil Pro 기준</span>
+    {options.map(([label, extra]) => <span className="accessory-option" key={label}>
+      <span>{label}</span>
+      {extra === null ? <span className="unverified">가격 확인 필요</span> : <strong>{won.format(basePrice + extra)} <small>+{won.format(extra)}</small></strong>}
+    </span>)}
+    {storeId === "coupang" && <span className="accessory-note">액세서리 별도 구매 기준</span>}
+  </div>;
+}
+function SourceLinks({ group }) {
+  if (group.id === "watch") return <p className="source-links">가격 출처: <a href={watchSources.apple.series} target="_blank" rel="noreferrer">Series 12 ↗</a> · <a href={watchSources.apple.se} target="_blank" rel="noreferrer">SE 3 ↗</a> · <a href={watchSources.education.series} target="_blank" rel="noreferrer">교육 할인 Series 12 ↗</a> · <a href={watchSources.education.se} target="_blank" rel="noreferrer">교육 할인 SE 3 ↗</a><br />기본 밴드는 스포츠 밴드·루프, 고급 밴드는 밀레니즈 루프 기준입니다. 크기·셀룰러·밴드 차액을 공식 시작가에 적용한 예상 가격이며 색상과 재고에 따라 달라질 수 있습니다. Coupang 기본 구성 가격은 제공된 조사표 기준이며, 다른 동일 구성 가격은 확인되지 않았습니다.</p>;
+  if (group.id === "mac-mini") return <p className="source-links">구성 가격 출처: <a href={group.sources.apple} target="_blank" rel="noreferrer">Apple 기본 ↗</a> · <a href={group.sources.education} target="_blank" rel="noreferrer">Apple 교육 스토어 ↗</a><br />중간·고급 구성 가격은 각 스토어의 선택 옵션 금액을 합산했습니다. Coupang의 동일 사양은 확인되지 않았습니다.</p>;
+  if (group.category !== "iPad") return null;
+  return <p className="source-links">액세서리 가격 출처: <a href={ipadAccessories.pencil.sources.apple} target="_blank" rel="noreferrer">Apple Pencil Pro 기본 ↗</a> · <a href={ipadAccessories.pencil.sources.education} target="_blank" rel="noreferrer">교육 할인 ↗</a> · <a href={ipadAccessories.keyboardSources.apple} target="_blank" rel="noreferrer">Magic Keyboard 기본 ↗</a> · <a href={ipadAccessories.keyboardSources.education} target="_blank" rel="noreferrer">교육 할인 ↗</a><br />Coupang 본체 가격은 제공된 조사표 기준이며, 현재 액세서리 판매가는 확인되지 않았습니다.</p>;
+}
 function PriceTable({ products }) {
   return (
     <div className="table-scroll">
@@ -79,16 +104,18 @@ function PriceTable({ products }) {
                       className={price === lowest ? "best-price" : ""}
                     >
                       {price === null ? (
-                        <span className="unavailable">매물 없음</span>
+                        <span className="unavailable">{product.missingLabels?.[store.id] ?? "매물 없음"}</span>
                       ) : (
                         <>
                           <div className="price-line">
                             <span className="price">{won.format(price)}</span>
+                            {product.estimatedPrices && store.id !== "coupang" && <span className="estimate-badge">예상가</span>}
                             {price === lowest && (
                               <span className="best-badge">최저가</span>
                             )}
                           </div>
                           <Installments storeId={store.id} price={price} />
+                          <AccessoryOptions product={product} storeId={store.id} basePrice={price} />
                         </>
                       )}
                     </td>
@@ -102,7 +129,27 @@ function PriceTable({ products }) {
     </div>
   );
 }
-function ComparisonPanel({ group }) {
+function WatchSelector({ options, onChange }) {
+  const fields = [
+    ["size", "크기", [["small", "작은 크기 · 42 / 40mm"], ["large", "큰 크기 · 46 / 44mm"]]],
+    ["connectivity", "연결성", [["gps", "GPS"], ["cellular", "GPS + Cellular"]]],
+    ["casing", "케이스", [["aluminum", "알루미늄"], ["titanium", "티타늄"], ["ceramic", "세라믹"]]],
+    ["band", "밴드", [["basic", "기본 · 고무 / 직물"], ["premium", "고급 · 스테인리스 스틸"]]],
+  ];
+  return <div className="watch-selector" aria-label="Apple Watch 구성 선택">
+    {fields.map(([field, title, choices]) => <fieldset key={field}>
+      <legend>{title}</legend>
+      <div className="watch-choices">{choices.map(([value, label]) => <button type="button" key={value} className={options[field] === value ? "active" : ""} aria-pressed={options[field] === value} disabled={field === "connectivity" && value === "gps" && options.casing !== "aluminum"} onClick={() => onChange({ ...options, [field]: value, ...(field === "casing" && value !== "aluminum" ? { connectivity: "cellular" } : {}) })}>{label}</button>)}</div>
+    </fieldset>)}
+    <p>티타늄·세라믹은 Series 12의 셀룰러 모델만 제공하며, SE 3는 알루미늄만 판매됩니다.</p>
+  </div>;
+}
+function ComparisonPanel({ group, watchOptions, setWatchOptions }) {
+  const tableFor = (item) => <>
+    {item.id === "watch" && <WatchSelector options={watchOptions} onChange={setWatchOptions} />}
+    <PriceTable products={item.id === "watch" ? watchProducts(watchOptions) : item.products} />
+    <SourceLinks group={item} />
+  </>;
   if (!group)
     return (
       <div className="all-groups">
@@ -112,7 +159,7 @@ function ComparisonPanel({ group }) {
               <h3>{item.label}</h3>
               <span>{item.description}</span>
             </div>
-            <PriceTable products={item.products} />
+            {tableFor(item)}
           </section>
         ))}
       </div>
@@ -124,9 +171,9 @@ function ComparisonPanel({ group }) {
           <h3>{group.label}</h3>
           <p>{group.description}</p>
         </div>
-        <span>{group.products.length}개 모델</span>
+        <span>{group.products.length}개 {group.id === "mac-mini" ? "구성" : "모델"}</span>
       </div>
-      <PriceTable products={group.products} />
+      {tableFor(group)}
     </div>
   );
 }
@@ -262,6 +309,7 @@ function InstallmentGuide() {
 }
 function App() {
   const [activeGroup, setActiveGroup] = useState("all");
+  const [watchOptions, setWatchOptions] = useState({ size: "small", connectivity: "gps", casing: "aluminum", band: "basic" });
   const selectedGroup = groups.find((group) => group.id === activeGroup);
   const count = groups.reduce(
     (total, group) => total + group.products.length,
@@ -284,7 +332,7 @@ function App() {
                 가격 비교
                 <span className="muted">한눈에 보고 고르세요</span>
               </h1>
-              <p>Apple 제품 {count}개의 가격을 직접 비교해 정리했습니다.</p>
+              <p>Apple 제품의 {count}개 모델·구성 가격을 직접 비교해 정리했습니다.</p>
             </div>
             <span
               className="update-label"
@@ -336,7 +384,7 @@ function App() {
                 <i /> 각 모델의 최저가
               </span>
             </div>
-            <ComparisonPanel group={selectedGroup} />
+            <ComparisonPanel group={selectedGroup} watchOptions={watchOptions} setWatchOptions={setWatchOptions} />
             <p className="comparison-caption">
               표시 가격은 {lastUpdated.replaceAll("-", ".")} 조사 기준입니다.
               할부 금액은 조건에 따른 예상치이며 실제 결제 전 확인이 필요합니다.
